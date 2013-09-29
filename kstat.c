@@ -1,11 +1,3 @@
-/* CSC 573 Kernel Programming Test Module*/
-/* Illustrative Kernel Codes */
-/* Kernel Programming */
-/* Instructor: Arpit Gupta */
-
-
-
-
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/netfilter.h>
