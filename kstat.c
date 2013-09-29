@@ -28,7 +28,6 @@
 
 
 #define MODULE_NAME "kstat"
-#define MAX_LENGTH PAGE_SIZE
 
  
 typedef unsigned long int u_32;
@@ -44,8 +43,7 @@ module_param(to_begin, int , 0644) ;
 
 // For procfs
 u_32 nout_pkts = 0;
-u_16 counter = 10;
-
+u_16 count = 0;
 
 
 
@@ -54,8 +52,8 @@ static struct nf_hook_ops nf_ops_out;
 
 /* Handles for our procfs Directory and File */
 static struct proc_dir_entry* file_kstat_nout;
-static struct proc_dir_entry* file_kstat_counter;
 static struct proc_dir_entry* dir_kstatDir;
+static struct proc_dir_entry* file_kstat_counter;
 
 
 /*
@@ -75,34 +73,6 @@ ssize_t read_procfile_nout(char* buffer, char** buffer_location, off_t offset, i
         return len;
 }
 
-ssize_t read_procfile_counter(char* buffer, char** buffer_location, off_t offset, int buffer_length,int* eof,void* data)
-{
-        int len =0;
-        if(offset > 0){
-            *eof = 1;
-            return len;
-        }
-        char temp[255];
-        len = sprintf(temp,"%hd",counter);
-        //temp[len-1]= "\n";
-        len = sprintf(buffer,"%s",temp);
-        return len;
-}
-
-size_t write_procfile_counter( struct file *filp, const char __user *buff, unsigned long len, void *data )
-{
-
-	int space_available = MAX_LENGTH+1;
-	if (len > space_available) {
-		printk(KERN_INFO "kstat: memory full!\n");
-		return -ENOSPC;
-	}
-	if (copy_from_user( &counter, buff, len )) {
-
-		return -EFAULT;
-	}
-	return len;
-}
 
 /***************************************************
  *
@@ -110,7 +80,11 @@ size_t write_procfile_counter( struct file *filp, const char __user *buff, unsig
  *
  ****************************************************/
 
-unsigned int outgoing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*))
+unsigned int outgoing_hook(unsigned int hooknum,
+            struct sk_buff *skb,
+            const struct net_device *in,
+            const struct net_device *out,
+            int (*okfn)(struct sk_buff*))
 {
 
     struct iphdr *iph;
@@ -125,7 +99,7 @@ unsigned int outgoing_hook(unsigned int hooknum, struct sk_buff *skb, const stru
     if (iph->protocol==IPPROTO_TCP)
     { 
        nout_pkts+=1;
-       if(nout_pkts%counter==0){
+       if(nout_pkts%count==0){
           printk(KERN_ALERT " Outgoing hook function called for nout: %ld\n",nout_pkts);
        }
     }
@@ -151,26 +125,24 @@ static int __init init(void){
    
    // Create a proc file entry
    file_kstat_nout = create_proc_entry("nout",0644,dir_kstatDir);
+   
    if(file_kstat_nout == NULL){
       /*Do NOTHING*/
       return -ENOMEM;
    }
-
-	//create a proc file entry for counter
+   
    file_kstat_counter = create_proc_entry("counter",0644,dir_kstatDir);
-	if(file_kstat_nout== NULL)
-	{
-		return -ENOMEM;
-	}
+   if(file_kstat_counter == NULL){
+      /*Do NOTHING*/
+      return -ENOMEM;
+   }
+   
    
    // Read Write Functions for proc file entries/entry
-   file_kstat_counter->read_proc=read_procfile_counter;
    file_kstat_nout->read_proc = read_procfile_nout;
    printk(KERN_ALERT "proc entries created\n");
-   //file_kstat_nout->write_proc = write_procfile_nout;  
-   file_kstat_counter->write_proc=write_procfile_counter;
-
-
+   //file_kstat_counter->write_proc = write_procfile_counter;  
+   
    // Initialize Hook Functions
    nf_ops_out.hook = outgoing_hook;
    nf_ops_out.pf = PF_INET;
@@ -181,7 +153,7 @@ static int __init init(void){
    // Read config information
    printk(KERN_ALERT "Reading the configuration file\n"); 
    // for counter variable
-   //counter = 100;
+   count = 100;
    
    
    // Register the Hook functions   
@@ -201,7 +173,9 @@ static void __exit cleanup(void){
   
   // Delete proc entries
   remove_proc_entry ("nout", dir_kstatDir);
-  remove_proc_entry ("counter",dir_kstatDir);
+  remove_proc_entry ("counter", dir_kstatDir);
+  
+  
   remove_proc_entry("kstat",NULL);
   printk(KERN_ALERT "proc entries deleted\n");
   
@@ -217,4 +191,4 @@ static void __exit cleanup(void){
 module_init(init);
 module_exit(cleanup);
 
-
+MODULE_LICENSE("GPL");
